@@ -1,7 +1,8 @@
 import pygame
+from pygame.sprite import Sprite
 
 
-class Ship:
+class Ship(Sprite):
     """管理飞船的类"""
 
     def __init__(self, ai_game):
@@ -25,6 +26,8 @@ class Ship:
         # 移动标志（飞船一开始不移动）
         self.moving_right = False  # 向右
         self.moving_left = False  # 向左
+
+        super().__init__()
 
     def update(self):
         """根据移动标志调整飞船的位置"""

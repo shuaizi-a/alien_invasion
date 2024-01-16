@@ -18,6 +18,12 @@ from alien import Alien
 # 记分板
 from game_stats import GameStats
 
+# 开始按钮类
+from button import Button
+
+# 计分牌
+from scoreboard import Scoreboard
+
 
 class AlienInvasion:
     """管理游戏资源和行为的类"""
@@ -25,12 +31,11 @@ class AlienInvasion:
     def __init__(self):
         """初始化游戏并创建游戏资源"""
         pygame.init()
+
         # 控制帧率
         self.clock = pygame.time.Clock()
         # 设置类
         self.settings = Settings()
-        # 创建一个用于存储游戏统计信息的实例
-        self.stats = GameStats(self)
 
         # 创建窗口
         self.screen = pygame.display.set_mode(
@@ -38,6 +43,11 @@ class AlienInvasion:
         )
         # 窗口名称
         pygame.display.set_caption("Alien Invasion")
+
+        # 创建一个用于存储游戏统计信息的实例
+        self.stats = GameStats(self)
+        # 计分牌
+        self.sb = Scoreboard(self)
 
         # 导入飞船
         self.ship = Ship(self)
@@ -50,7 +60,10 @@ class AlienInvasion:
         self._create_fleet()
 
         # 游戏启动后处于活动状态
-        self.game_active = True
+        self.game_active = False
+
+        # 创建 Play 按钮
+        self.play_button = Button(self, "Play")
 
     def run_game(self):
         """开始游戏的主循环"""
@@ -80,6 +93,9 @@ class AlienInvasion:
             # 键盘抬起事件
             elif event.type == pygame.KEYUP:
                 self._check_key_up_events(event)
+            elif event.type == pygame.MOUSEBUTTONDOWN:
+                mouse_pos = pygame.mouse.get_pos()
+                self._check_play_button(mouse_pos)
 
     def _check_key_down_events(self, event):
         """响应键盘按下事件"""
@@ -98,6 +114,31 @@ class AlienInvasion:
             self.ship.moving_right = False
         elif event.key == pygame.K_LEFT:
             self.ship.moving_left = False
+
+    def _check_play_button(self, mouse_pos):
+        """在玩家单击 Play 按钮时开始新游戏"""
+        button_clicked = self.play_button.rect.collidepoint(mouse_pos)
+        if button_clicked and not self.game_active:
+            # 还原游戏设置
+            self.settings.initialize_dynamic_settings()
+
+            # 重置游戏的统计信息
+            self.stats.reset_stats()
+            self.sb.prep_score()
+            self.sb.prep_level()
+            self.sb.prep_ships()
+            self.game_active = True
+
+            # 清空外星人列表和子弹列表
+            self.bullets.empty()
+            self.aliens.empty()
+
+            # 创建一个新的外星舰队，并将飞船放在屏幕底部的中央
+            self._create_fleet()
+            self.ship.center_ship()
+
+            # 隐藏光标
+            pygame.mouse.set_visible(False)
 
     def _fire_bullet(self):
         """创建一颗子弹，并将其加入编组 bullets"""
@@ -124,10 +165,21 @@ class AlienInvasion:
         # 删除发生碰撞的子弹和外星人
         collisions = pygame.sprite.groupcollide(self.bullets, self.aliens, True, True)
 
+        if collisions:
+            for aliens in collisions.values():
+                self.stats.score += self.settings.alien_points * len(aliens)
+            self.sb.prep_score()
+            self.sb.check_high_score()
+
         if not self.aliens:
             # 删除现有的所有子弹，并创建一个新的外星舰队
             self.bullets.empty()
             self._create_fleet()
+            self.settings.increase_speed()
+
+            # 提高等级
+            self.stats.level += 1
+            self.sb.prep_level()
 
     def _create_fleet(self):
         """创建一个外星舰队"""
@@ -194,6 +246,7 @@ class AlienInvasion:
         if self.stats.ships_left > 0:
             # 将 ships_left 减 1
             self.stats.ships_left -= 1
+            self.sb.prep_ships()
             # 清空外星人列表和子弹列表
             self.bullets.empty()
             self.aliens.empty()
@@ -204,6 +257,7 @@ class AlienInvasion:
             sleep(0.5)
         else:
             self.game_active = False
+            pygame.mouse.set_visible(True)
 
     def _update_screen(self):
         """更新屏幕上的图像，并切换到新屏幕"""
@@ -216,6 +270,11 @@ class AlienInvasion:
         self.ship.blitme()
         # 绘制外星人
         self.aliens.draw(self.screen)
+        # 显示得分
+        self.sb.show_score()
+        # 如果游戏处于非活动状态，就绘制 Play 按钮
+        if not self.game_active:
+            self.play_button.draw_button()
         # 让最近绘制的屏幕可见
         pygame.display.flip()
 
